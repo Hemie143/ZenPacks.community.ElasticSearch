@@ -1,1 +1,104 @@
 name: ZenPacks.community.ElasticSearch
+
+zProperties:
+  DEFAULTS:
+    category: ElasticSearch
+  zElasticSearchUseSSL:
+    type: boolean
+    default: false
+  zElasticSearchPort:
+    type: int
+    default: 9200
+
+classes:
+  ESCluster:
+    base: [zenpacklib.Component]
+    label: ElasticSearch Cluster
+    monitoring_templates: [ESCluster]
+    properties:
+      uuid:
+        label: UUID
+        grid_display: false
+      status:
+        label: status
+        grid_display: true
+        label_width: 35
+        content_width: 60
+        datapoint: health_status
+        datapoint_default: 0
+        enum:
+          0: GREEN
+          1: YELLOW
+          2: RED
+
+  ESNode:
+    base: [zenpacklib.Component]
+    label: ElasticSearch Node
+    monitoring_templates: [ESNode]
+    properties:
+      host:
+        label: Host
+        grid_display: false
+      ip:
+        label: IP
+        grid_display: false
+
+  ESIndex:
+    base: [zenpacklib.Component]
+    label: ElasticSearch Index
+    plural_label: ElasticSearch Indices
+    monitoring_templates: [ESIndex]
+
+  ESShard:
+    base: [zenpacklib.Component]
+    label: ElasticSearch Shard
+    monitoring_templates: [ESShard]
+    properties:
+      primary:
+        label: Primary
+        grid_display: false
+      node:
+        label: Node
+        grid_display: false
+
+class_relationships:
+#   - Products.ZenModel.Device.Device 1:MC ESCluster
+  - Products.ZenModel.Device.Device(esclusters) 1:MC (es_host)ESCluster
+  - ESCluster(esnodes) 1:MC (escluster)ESNode
+  - ESCluster(esindices) 1:MC (escluster)ESIndex
+  - ESIndex(esshards) 1:MC (esindex)ESShard
+
+device_classes:
+  /Server/SSH/Linux/Logging:
+    zProperties:
+      zPingMonitorIgnore: true
+      zSnmpMonitorIgnore: false
+
+    templates:
+      ESCluster:
+        targetPythonClass: ZenPacks.community.ElasticSearch.ESCluster
+        datasources:
+          health:
+            type: Python
+            plugin_classname: ZenPacks.community.ElasticSearch.dsplugins.health.Health
+            datapoints:
+              status:
+                rrdtype: GAUGE
+      ESNode:
+        targetPythonClass: ZenPacks.community.ElasticSearch.ESNode
+        datasources:
+          health:
+            type: Python
+            plugin_classname: ZenPacks.community.ElasticSearch.dsplugins.health.Health
+            datapoints:
+              status:
+                rrdtype: GAUGE
+      ESShard:
+        targetPythonClass: ZenPacks.community.ElasticSearch.ESShard
+        datasources:
+          health:
+            type: Python
+            plugin_classname: ZenPacks.community.ElasticSearch.dsplugins.health.Health
+            datapoints:
+              status:
+                rrdtype: GAUGE
