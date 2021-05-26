@@ -15,12 +15,19 @@ classes:
     base: [zenpacklib.Component]
     label: ElasticSearch Cluster
     monitoring_templates: [ESCluster]
+    relationships:
+      esindices:
+        label: Indices
+        label_width: 50
+      esnodes:
+        label: Nodes
+        label_width: 50
     properties:
       uuid:
         label: UUID
         grid_display: false
       status:
-        label: status
+        label: Status
         grid_display: true
         label_width: 35
         content_width: 60
@@ -35,6 +42,13 @@ classes:
     base: [zenpacklib.Component]
     label: ElasticSearch Node
     monitoring_templates: [ESNode]
+    relationships:
+      escluster:
+        label: Cluster
+        label_width: 50
+#       esshards:
+#        label: Shards
+#        label_width: 50
     properties:
       host:
         label: Host
@@ -48,18 +62,56 @@ classes:
     label: ElasticSearch Index
     plural_label: ElasticSearch Indices
     monitoring_templates: [ESIndex]
+    relationships:
+      escluster:
+        label: Cluster
+        label_width: 50
+      esshards:
+        label: Shards
+        label_width: 50
 
   ESShard:
     base: [zenpacklib.Component]
     label: ElasticSearch Shard
     monitoring_templates: [ESShard]
+    relationships:
+#      escluster:
+#        label: Cluster
+#        label_width: 50
+      esindex:
+        label: Index
+        label_width: 75
+      esnode:
+        grid_display: true
+        label: Node
+        label_width: 75
+        content_width: 270
     properties:
+      state:
+        label: State
+        grid_display: true
+        label_width: 35
+        content_width: 60
+        datapoint: shard_state
+        datapoint_default: 0
+        enum:
+          0: STARTED
+          1: UNASSIGNED
+          2: UNKNOW
       primary:
         label: Primary
         grid_display: false
       node:
         label: Node
         grid_display: false
+      index_id:
+        label: Index ID
+        grid_display: false
+        details_display: false
+      shard_id:
+        label: Shard ID
+        grid_display: false
+        details_display: false
 
 class_relationships:
 #   - Products.ZenModel.Device.Device 1:MC ESCluster
@@ -67,6 +119,7 @@ class_relationships:
   - ESCluster(esnodes) 1:MC (escluster)ESNode
   - ESCluster(esindices) 1:MC (escluster)ESIndex
   - ESIndex(esshards) 1:MC (esindex)ESShard
+  - ESNode(esshard) 1:M (esnode)ESShard
 
 device_classes:
   /Server/SSH/Linux/Logging:
@@ -80,25 +133,162 @@ device_classes:
         datasources:
           health:
             type: Python
-            plugin_classname: ZenPacks.community.ElasticSearch.dsplugins.health.Health
+            plugin_classname: ZenPacks.community.ElasticSearch.dsplugins.cluster.Health
             datapoints:
               status:
                 rrdtype: GAUGE
+              unassigned_shards:
+                rrdtype: GAUGE
+              active_primary_shards:
+                rrdtype: GAUGE
+              active_shards:
+                rrdtype: GAUGE
+              initializing_shards:
+                rrdtype: GAUGE
+              relocating_shards:
+                rrdtype: GAUGE
+              delayed_unassigned_shards:
+                rrdtype: GAUGE
+        graphs:
+          Active shards:
+            units: shards
+            miny: 0
+            graphpoints:
+              Active shards:
+                lineType: AREA
+                dpName: health_active_shards
+                sequence: 1
+              Active primary shards:
+                lineType: AREA
+                dpName: health_active_primary_shards
+                sequence: 2
+          Inactive shards:
+            units: shards
+            miny: 0
+            graphpoints:
+              Unassigned shards:
+                lineType: AREA
+                dpName: health_unassigned_shards
+                sequence: 1
+              Delayed unassigned shards:
+                dpName: health_delayed_unassigned_shards
+                sequence: 2
+              Initializing shards:
+                dpName: health_initializing_shards
+                sequence: 3
+              Relocating shards:
+                dpName: health_relocating_shards
+                sequence: 4
+
       ESNode:
         targetPythonClass: ZenPacks.community.ElasticSearch.ESNode
         datasources:
-          health:
+          node:
             type: Python
-            plugin_classname: ZenPacks.community.ElasticSearch.dsplugins.health.Health
+            plugin_classname: ZenPacks.community.ElasticSearch.dsplugins.node.Node
             datapoints:
-              status:
+              jvm_heap_used_bytes:
                 rrdtype: GAUGE
+              jvm_heap_committed_bytes:
+                rrdtype: GAUGE
+              jvm_heap_max_bytes:
+                rrdtype: GAUGE
+              jvm_heap_used_perc:
+                rrdtype: GAUGE
+              jvm_pool_young_used:
+                rrdtype: GAUGE
+              jvm_pool_young_max:
+                rrdtype: GAUGE
+              jvm_pool_old_used:
+                rrdtype: GAUGE
+              jvm_pool_old_max:
+                rrdtype: GAUGE
+              jvm_pool_survivor_used:
+                rrdtype: GAUGE
+              jvm_pool_survivor_max:
+                rrdtype: GAUGE
+              jvm_threads:
+                rrdtype: GAUGE
+        graphs:
+          JVM Heap Memory:
+            units: bytes
+            miny: 0
+            base: true
+            graphpoints:
+              Java Heap Used:
+                dpName: node_jvm_heap_used_bytes
+                sequence: 1
+              Java Heap Commited:
+                dpName: node_jvm_heap_committed_bytes
+                sequence: 2
+              Java Heap Max:
+                lineType: AREA
+                dpName: node_jvm_heap_max_bytes
+                sequence: 3
+          JVM Heap Memory Usage:
+            units: percent
+            miny: 0
+            maxy: 100
+            graphpoints:
+              Java Heap Used:
+                lineType: AREA
+                dpName: node_jvm_heap_used_perc
+                sequence: 1
+          JVM Memory Pool Young:
+            units: bytes
+            miny: 0
+            base: true
+            graphpoints:
+              Java Heap Used:
+                dpName: node_jvm_pool_young_used
+                sequence: 1
+              Java Heap Max:
+                dpName: node_jvm_pool_young_max
+                sequence: 2
+          JVM Memory Pool Old:
+            units: bytes
+            miny: 0
+            base: true
+            graphpoints:
+              Java Heap Used:
+                dpName: node_jvm_pool_old_used
+                sequence: 1
+              Java Heap Max:
+                dpName: node_jvm_pool_old_max
+                sequence: 2
+          JVM Memory Pool Survivor:
+            units: bytes
+            miny: 0
+            base: true
+            graphpoints:
+              Java Heap Used:
+                dpName: node_jvm_pool_survivor_used
+                sequence: 1
+              Java Heap Max:
+                dpName: node_jvm_pool_survivor_max
+                sequence: 2
+          JVM Threads:
+            units: threads
+            miny: 0
+            graphpoints:
+              Threads:
+                dpName: node_jvm_threads
+                sequence: 1
+
       ESShard:
         targetPythonClass: ZenPacks.community.ElasticSearch.ESShard
         datasources:
-          health:
+          shard:
             type: Python
-            plugin_classname: ZenPacks.community.ElasticSearch.dsplugins.health.Health
+            plugin_classname: ZenPacks.community.ElasticSearch.dsplugins.shard.Shard
             datapoints:
-              status:
+              state:
                 rrdtype: GAUGE
+
+event_classes:
+  /Status/ElasticSearch:
+    remove: false
+  /Status/ElasticSearch/Cluster:
+    remove: false
+  /Status/ElasticSearch/Shard:
+    remove: false

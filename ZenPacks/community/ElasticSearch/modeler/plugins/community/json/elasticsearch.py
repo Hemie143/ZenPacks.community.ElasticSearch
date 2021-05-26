@@ -31,7 +31,7 @@ class elasticsearch(PythonPlugin):
 
     @inlineCallbacks
     def collect(self, device, log):
-        """Asynchronously collect data from device. Return a deferred/"""
+        """Asynchronously collect data from device. Return a deferred"""
         log.info('%s: collecting data', device.id)
 
         zElasticSearchPort = getattr(device, 'zElasticSearchPort', None)
@@ -46,7 +46,7 @@ class elasticsearch(PythonPlugin):
 
         queries = {
             'cluster': '{}://{}:{}/_cluster/stats',
-            'cluster_state': '{}://{}:{}/_cluster/state',
+            'cluster_state': '{}://{}:{}/_cluster/state/cluster_name,metadata,routing_table',
             'nodes': '{}://{}:{}/_nodes/stats',
         }
 
@@ -74,7 +74,6 @@ class elasticsearch(PythonPlugin):
             if 'cluster_state' in results:
                 rm.extend(self.model_indices(results['cluster_state'], log))
 
-        log.debug('process rm: {}'.format(rm))
         return rm
 
     def model_cluster(self, data, log):
@@ -109,32 +108,36 @@ class elasticsearch(PythonPlugin):
                                objmaps=node_maps)
 
     def model_indices(self, data, log):
-        # log.debug('model_indices data: {}'.format(data))
+        log.debug('model_indices data: {}'.format(data))
         cluster_name = data['cluster_name']
         comp_cluster = 'esclusters/{}'.format(self.prepId(cluster_name))
 
         rm = []
         rm_shards = []
+        rm_shardnode = []
         index_maps = []
         for index_id, index_data in data['metadata']['indices'].items():
-            log.debug('model_indices index: {}'.format(index_id))
             om_index = ObjectMap()
             om_index.id = self.prepId(index_id)
             om_index.title = index_id
             index_maps.append(om_index)
             comp_index = '{}/esindices/{}'.format(comp_cluster, om_index.id)
             index_shards = data['routing_table']['indices'][index_id]['shards']
-            log.debug('model_indices index_shards: {}'.format(index_shards))
             shards_maps = []
             for shard_id, shard_data in index_shards.items():
-                log.debug('model_indices shard_id: {}'.format(shard_id))
-                log.debug('model_indices shard_data: {}'.format(shard_data))
                 om_shard = ObjectMap()
                 om_shard.id = self.prepId('{}_{}'.format(index_id, shard_id))
                 om_shard.title = '{}_{}'.format(index_id, shard_id)
                 om_shard.primary = shard_data[0]['primary']
-                om_shard.node = shard_data[0]['node']
+                om_shard.index_id = index_id
+                om_shard.shard_id = shard_id
+                node = shard_data[0]['node']
+                if node:
+                    om_shard.node = node
+                    om_shard.set_esnode = self.prepId(node)
+
                 shards_maps.append(om_shard)
+
             rm_shards.append(RelationshipMap(compname=comp_index,
                                              relname='esshards',
                                              modname='ZenPacks.community.ElasticSearch.ESShard',
